@@ -5,7 +5,7 @@ export function Help({ extra }: { extra?: string }) {
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text dimColor>
-        tab 窥视  ^J 发音  ^I 英文输入法  ^V 默写  ^T 译文  ^D 词库  ^E 错题  ^O 设置  esc 暂停
+        tab 窥视  ^J 发音  ^L 词表  ^A 统计  ^E 错题  ^D 词库  ^O 设置  esc 暂停
       </Text>
       {extra ? <Text color="yellow">{extra}</Text> : null}
     </Box>
@@ -24,7 +24,11 @@ export function HelpOverlay() {
     ['Ctrl+← / Ctrl+→', '上 / 下一词（不计入成绩）'],
     ['Ctrl+S', '错 4 次后跳过'],
     ['Ctrl+D', '词库'],
-    ['Ctrl+E', '错题本'],
+    ['Ctrl+L', '本章词表'],
+    ['Ctrl+A', '统计'],
+    ['Ctrl+Shift+J', '朗读当前释义'],
+    ['Ctrl+E', '错题本（r 复习当前词库错词）'],
+    ['Ctrl+M', '开关键音'],
     ['Ctrl+O', '设置'],
     ['Esc', '暂停；再按退出'],
     ['q', '暂停时退出'],

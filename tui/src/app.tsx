@@ -24,8 +24,12 @@ import {
   appendRecord,
   deleteWordRecords,
   groupErrorBook,
+  exportBackup,
+  importBackup,
   inferWordIndex,
   loadConfig,
+  loadStatsSummary,
+  saveChapterRecord,
   saveConfig,
   type TuiConfig,
 } from './persist.ts'
@@ -33,11 +37,13 @@ import { ErrorBookView } from './screens/ErrorBook.tsx'
 import { GalleryView } from './screens/Gallery.tsx'
 import { ResultView } from './screens/Result.tsx'
 import { SettingsView, settingKeys } from './screens/Settings.tsx'
+import { StatsView } from './screens/Stats.tsx'
+import { WordListView } from './screens/WordList.tsx'
 import { TypingView } from './screens/Typing.tsx'
-import { playWord, prefetchWord, stopPlayback } from './speak.ts'
+import { listKeySounds, playSfx, playText, playWord, prefetchWord, stopPlayback } from './speak.ts'
 import { getIme, grabEnglish, imeShortName, releaseIme } from './ime.ts'
 
-type Screen = 'typing' | 'gallery' | 'errors' | 'settings' | 'result'
+type Screen = 'typing' | 'gallery' | 'errors' | 'settings' | 'result' | 'stats' | 'words'
 
 function persist(config: TuiConfig) {
   saveConfig(config)
@@ -91,8 +97,13 @@ export default function App() {
   const [settingIndex, setSettingIndex] = useState(0)
   const [errorTick, setErrorTick] = useState(0)
   const [imeLabel, setImeLabel] = useState('?')
+  const [stats, setStats] = useState(() => loadStatsSummary())
+  const [listIndex, setListIndex] = useState(0)
+  const [settingsMessage, setSettingsMessage] = useState('')
   const exerciseCount = useRef(0)
   const peekTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const sessionWordsRef = useRef<Word[] | undefined>(undefined)
+  const wordRecordIdsRef = useRef<string[]>([])
 
   const current = chapter.words[chapter.index]
   const errors = useMemo(() => groupErrorBook(), [errorTick, screen])
@@ -124,6 +135,8 @@ export default function App() {
     setWord(session.word)
     setErrorBookMode(fromErrorBook)
     exerciseCount.current = 0
+    sessionWordsRef.current = words
+    wordRecordIdsRef.current = []
     setPeeking(false)
     setScreen('typing')
     if (!fromErrorBook) {
@@ -144,10 +157,11 @@ export default function App() {
   }, [chapter.isTyping, chapter.isFinished, screen])
 
   useEffect(() => {
-    if (screen !== 'typing' || !chapter.isTyping || word.inputWord.length > 0) return
+    if (screen !== 'typing' || !chapter.isTyping || chapter.isFinished) return
+    if (word.inputWord.length > 0) return
     if (!config.pronunciation.isOpen || !current?.name) return
     playWord(current.name, config.pronunciation.type)
-  }, [screen, chapter.isTyping, chapter.index, word.inputWord.length, current?.name, config.pronunciation])
+  }, [screen, chapter.isTyping, chapter.isFinished, chapter.index, word.inputWord.length, current?.name, config.pronunciation.isOpen, config.pronunciation.type])
 
   useEffect(() => {
     const next = chapter.words[chapter.index + 1]
@@ -158,17 +172,26 @@ export default function App() {
     (finished, liveChapter) => {
       const item = liveChapter.words[liveChapter.index]
       if (item) {
+        const id = crypto.randomUUID()
         appendRecord({
-          id: crypto.randomUUID(),
+          id,
           word: item.name,
           dict: dict.id,
-          chapter: errorBookMode ? null : config.chapter,
+          chapter: errorBookMode ? -1 : config.chapter,
           timeStamp: Math.floor(Date.now() / 1000),
           wrongCount: finished.wrongCount,
           timing: timingDiffs(finished.letterTimeArray),
           mistakes: finished.letterMistake,
         })
+        wordRecordIdsRef.current.push(id)
         setErrorTick((n) => n + 1)
+      }
+      if (config.keySounds) playSfx('correct', config.keySound)
+      const gloss = item?.trans[0]
+      if (config.transRead && gloss) {
+        setTimeout(() => {
+          playText(gloss, 'zh')
+        }, 280)
       }
       if (exerciseCount.current + 1 < config.loopTimes) {
         exerciseCount.current += 1
@@ -187,21 +210,41 @@ export default function App() {
         }
         return
       }
-      setChapter(finishChapter(liveChapter))
+      const done = finishChapter(liveChapter)
+      saveChapterRecord({
+        dict: dict.id,
+        chapter: errorBookMode ? -1 : config.chapter,
+        timeStamp: Math.floor(Date.now() / 1000),
+        time: done.time,
+        correctCount: done.correctCount,
+        wrongCount: done.wrongCount,
+        wordCount: done.wordCount,
+        wordNumber: done.words.length,
+        correctWordIndexes: done.userInputLogs
+          .filter((log) => log.correctCount > 0 && log.wrongCount === 0)
+          .map((log) => log.index),
+        wordRecordIds: [...wordRecordIdsRef.current],
+      })
+      setChapter(done)
       setWord(finished)
       setScreen('result')
       if (!errorBookMode) {
         setConfig((old) => persist({ ...old, wordIndex: liveChapter.words.length }))
       }
     },
-    [config.chapter, config.loopTimes, dict.id, errorBookMode],
+    [config.chapter, config.loopTimes, config.keySounds, config.keySound, config.transRead, dict.id, errorBookMode],
   )
 
   const typeChar = useCallback(
     (raw: string) => {
       if (word.hasWrong || chapter.isFinished) return
       let live = chapter
-      if (!live.isTyping) live = startTyping(live)
+      if (!live.isTyping) {
+        live = startTyping(live)
+        if (config.pronunciation.isOpen && current?.name) {
+          playWord(current.name, config.pronunciation.type)
+        }
+      }
       const result = applyChar(word, raw, config.ignoreCase)
       if (result.kind === 'ignored') {
         setChapter(live)
@@ -213,15 +256,17 @@ export default function App() {
           finishWord(result.state, live)
           return
         }
+        if (config.keySounds) playSfx('click', config.keySound)
         setWord(result.state)
         setChapter(live)
         return
       }
+      if (config.keySounds) playSfx('beep')
       live = reportWrong(live, result.state.letterMistake, result.state.wrongCount)
       setWord(result.state)
       setChapter(live)
     },
-    [chapter, config.ignoreCase, finishWord, word],
+    [chapter, config.ignoreCase, config.keySounds, config.keySound, config.pronunciation, current?.name, finishWord, word],
   )
 
   const filteredDicts = useMemo(() => {
@@ -273,7 +318,35 @@ export default function App() {
       }
       if (key === 'phonetic') return { ...old, phonetic: !old.phonetic }
       if (key === 'isTransVisible') return { ...old, isTransVisible: !old.isTransVisible }
-      return { ...old, forceSystemAbc: !old.forceSystemAbc }
+      if (key === 'forceSystemAbc') return { ...old, forceSystemAbc: !old.forceSystemAbc }
+      if (key === 'keySounds') return { ...old, keySounds: !old.keySounds }
+      if (key === 'keySound') {
+        const sounds = listKeySounds()
+        const i = Math.max(0, sounds.indexOf(old.keySound))
+        const next = sounds[(i + (dir === 1 ? 1 : sounds.length - 1)) % sounds.length]
+        playSfx('click', next)
+        return { ...old, keySound: next }
+      }
+      if (key === 'transRead') return { ...old, transRead: !old.transRead }
+      if (key === 'exportBackup') {
+        try {
+          const file = exportBackup()
+          setSettingsMessage(`已导出 ${file}`)
+        } catch (error) {
+          setSettingsMessage(`导出失败: ${error instanceof Error ? error.message : String(error)}`)
+        }
+        return old
+      }
+      if (key === 'importBackup') {
+        try {
+          const result = importBackup()
+          setSettingsMessage(`已导入 词${result.words} 章${result.chapters}`)
+        } catch (error) {
+          setSettingsMessage(`导入失败: ${error instanceof Error ? error.message : String(error)}`)
+        }
+        return old
+      }
+      return old
     })
   }
 
@@ -340,6 +413,29 @@ export default function App() {
         const found = lookupWord(source, group.word)
         const practiceWord = found ?? { name: group.word, trans: [], usphone: '', ukphone: '' }
         loadSession(config, [practiceWord], true)
+      } else if (input === 'r') {
+        const forDict = errors.filter((g) => g.dict === dict.id)
+        const source = (forDict.length > 0 ? forDict : errors).slice(0, 20)
+        if (source.length === 0) return
+        const words = source.map((g) => {
+          const found = lookupWord(getDictById(g.dict), g.word)
+          return found ?? { name: g.word, trans: [], usphone: '', ukphone: '' }
+        })
+        loadSession(config, words, true)
+      }
+      return
+    }
+
+    if (screen === 'words') {
+      if (key.escape) {
+        setScreen('typing')
+        return
+      }
+      if (key.upArrow) setListIndex((n) => Math.max(0, n - 1))
+      else if (key.downArrow) setListIndex((n) => Math.min(chapter.words.length - 1, n + 1))
+      else if (key.return) {
+        jumpWord(listIndex)
+        setScreen('typing')
       }
       return
     }
@@ -352,6 +448,11 @@ export default function App() {
       if (key.upArrow) setSettingIndex((n) => Math.max(0, n - 1))
       else if (key.downArrow) setSettingIndex((n) => Math.min(settingKeys.length - 1, n + 1))
       else if (key.return || key.rightArrow || key.leftArrow) toggleSetting(key.leftArrow ? -1 : 1)
+      return
+    }
+
+    if (screen === 'stats') {
+      if (key.escape) setScreen('typing')
       return
     }
 
@@ -378,6 +479,10 @@ export default function App() {
         return
       }
       if (input === ' ' || (key.return && key.shift) || input === 'd') {
+        if (errorBookMode && sessionWordsRef.current) {
+          loadSession(config, sessionWordsRef.current, true)
+          return
+        }
         const dictationOn = input === 'd' || key.shift
         const next = persist({
           ...config,
@@ -407,6 +512,22 @@ export default function App() {
       setQuitConfirm(true)
       return
     }
+    if (key.ctrl && input === 'l') {
+      setChapter((s) => pauseTyping(s))
+      setListIndex(chapter.index)
+      setScreen('words')
+      return
+    }
+    if (key.ctrl && input === 'a') {
+      setChapter((s) => pauseTyping(s))
+      setStats(loadStatsSummary())
+      setScreen('stats')
+      return
+    }
+    if (key.ctrl && input === 'm') {
+      updateConfig((old) => ({ ...old, keySounds: !old.keySounds }))
+      return
+    }
     if (key.ctrl && input === 'd') {
       const all = getDictionaries()
       setGalleryQuery('')
@@ -428,6 +549,11 @@ export default function App() {
       return
     }
     if (key.ctrl && input === 'j') {
+      if (key.shift) {
+        const gloss = current?.trans[0]
+        if (gloss) playText(gloss, 'zh')
+        return
+      }
       if (current) playWord(current.name, config.pronunciation.type)
       return
     }
@@ -448,6 +574,20 @@ export default function App() {
       if (word.wrongCount >= SKIP_AFTER_WRONG || chapter.isShowSkip) {
         const next = skipWord(chapter)
         if (next.isFinished) {
+          saveChapterRecord({
+            dict: dict.id,
+            chapter: errorBookMode ? -1 : config.chapter,
+            timeStamp: Math.floor(Date.now() / 1000),
+            time: next.time,
+            correctCount: next.correctCount,
+            wrongCount: next.wrongCount,
+            wordCount: next.wordCount,
+            wordNumber: next.words.length,
+            correctWordIndexes: next.userInputLogs
+              .filter((log) => log.correctCount > 0 && log.wrongCount === 0)
+              .map((log) => log.index),
+            wordRecordIds: [...wordRecordIdsRef.current],
+          })
           setChapter(next)
           setScreen('result')
           if (!errorBookMode) {
@@ -508,9 +648,18 @@ export default function App() {
       ) : screen === 'errors' ? (
         <ErrorBookView groups={errors} selected={errorIndex} />
       ) : screen === 'settings' ? (
-        <SettingsView config={config} selected={settingIndex} />
+        <SettingsView config={config} selected={settingIndex} message={settingsMessage} />
+      ) : screen === 'words' ? (
+        <WordListView
+          title={errorBookMode ? `复习 · ${dict.name}` : `${dict.name} 第 ${config.chapter + 1} 章`}
+          words={chapter.words}
+          currentIndex={chapter.index}
+          selected={listIndex}
+        />
+      ) : screen === 'stats' ? (
+        <StatsView stats={stats} />
       ) : screen === 'result' ? (
-        <ResultView chapter={chapter} />
+        <ResultView chapter={chapter} reviewing={errorBookMode} />
       ) : (
         <TypingView
           dict={dict}
@@ -521,6 +670,7 @@ export default function App() {
           peeking={peeking}
           pausedHint={!chapter.isTyping}
           imeLabel={imeLabel}
+          reviewing={errorBookMode}
         />
       )}
     </Box>

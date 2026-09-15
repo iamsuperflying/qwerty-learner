@@ -3,7 +3,7 @@ import { Box, Text } from 'ink'
 import { formatTime, wordAccuracy } from '../engine/chapter.ts'
 import type { ChapterState } from '../engine/types.ts'
 
-export function ResultView({ chapter }: { chapter: ChapterState }) {
+export function ResultView({ chapter, reviewing }: { chapter: ChapterState; reviewing?: boolean }) {
   const wrong = chapter.userInputLogs.filter((log) => log.wrongCount > 0)
   const wrongWords = wrong
     .map((log) => chapter.words[log.index]?.name)
@@ -42,7 +42,11 @@ export function ResultView({ chapter }: { chapter: ChapterState }) {
         </Box>
       )}
       <Box marginTop={1} flexDirection="column" alignItems="center">
-        <Text dimColor>Enter 下一章 · Space 重练 · d 默写本章 · Esc 返回</Text>
+        <Text dimColor>
+          {reviewing
+            ? 'Enter 回正常练习 · Space 再刷这批错题 · Esc 返回'
+            : 'Enter 下一章 · Space 重练 · d 默写本章 · Esc 返回'}
+        </Text>
       </Box>
     </Box>
   )

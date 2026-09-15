@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import https from 'node:https'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { dataDir } from './persist.ts'
 
 let current: ChildProcess | null = null
@@ -85,6 +86,75 @@ function playFile(file: string): boolean {
     return true
   }
   return false
+}
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+
+function playDetached(file: string) {
+  if (!fs.existsSync(file)) return
+  const spawnSfx = (cmd: string, args: string[]) => {
+    spawn(cmd, args, { stdio: 'ignore', detached: true }).unref()
+  }
+  if (process.platform === 'darwin' && which('afplay')) {
+    spawnSfx('afplay', [file])
+    return
+  }
+  if (which('ffplay')) {
+    spawnSfx('ffplay', ['-nodisp', '-autoexit', '-loglevel', 'quiet', file])
+    return
+  }
+  if (which('mpg123')) {
+    spawnSfx('mpg123', ['-q', file])
+    return
+  }
+  if (which('mpv')) {
+    spawnSfx('mpv', ['--no-video', '--really-quiet', file])
+  }
+}
+
+export function listKeySounds(): string[] {
+  const dir = path.join(repoRoot, 'public/sounds/key-sound')
+  if (!fs.existsSync(dir)) return ['Default.wav']
+  const files = fs.readdirSync(dir).filter((f) => /\.(wav|mp3)$/i.test(f))
+  files.sort((a, b) => {
+    if (a === 'Default.wav') return -1
+    if (b === 'Default.wav') return 1
+    return a.localeCompare(b)
+  })
+  return files.length > 0 ? files : ['Default.wav']
+}
+
+export function playSfx(kind: 'click' | 'beep' | 'correct', keyFile = 'Default.wav') {
+  const file =
+    kind === 'click'
+      ? path.join(repoRoot, 'public/sounds/key-sound', keyFile)
+      : kind === 'beep'
+        ? path.join(repoRoot, 'public/sounds/beep.wav')
+        : path.join(repoRoot, 'public/sounds/correct.wav')
+  playDetached(file)
+}
+
+function cacheKey(text: string) {
+  return text.replace(/[^\w一-鿿.-]+/g, '_').slice(0, 80) || 'x'
+}
+
+export async function playText(text: string, lang: 'zh' | 'us' | 'uk' = 'zh'): Promise<void> {
+  const clip = text.trim().slice(0, 40)
+  if (!clip) return
+  const url =
+    lang === 'zh'
+      ? `https://dict.youdao.com/dictvoice?audio=${encodeURIComponent(clip)}&le=zh`
+      : generateWordSoundSrc(clip, lang)
+  const file = path.join(dataDir(), 'cache', lang, `${cacheKey(clip)}.mp3`)
+  try {
+    if (!fs.existsSync(file)) {
+      const ok = await download(url, file)
+      if (!ok) return
+    }
+    playFile(file)
+  } catch {
+    // ignore
+  }
 }
 
 function speakTts(word: string, type: 'us' | 'uk') {

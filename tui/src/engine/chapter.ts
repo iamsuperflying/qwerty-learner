@@ -146,7 +146,7 @@ export function wordAccuracy(state: ChapterState): number {
 export function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60)
   const s = seconds % 60
-  return `${m}:${String(s).padStart(2, '0')}`
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
 export function chapterCountOf(length: number): number {

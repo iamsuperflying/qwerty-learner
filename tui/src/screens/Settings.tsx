@@ -13,13 +13,26 @@ export const settingKeys = [
   'phonetic',
   'isTransVisible',
   'forceSystemAbc',
+  'keySounds',
+  'keySound',
+  'transRead',
+  'exportBackup',
+  'importBackup',
 ] as const
 
 function onOff(value: boolean) {
   return value ? '开' : '关'
 }
 
-export function SettingsView({ config, selected }: { config: TuiConfig; selected: number }) {
+export function SettingsView({
+  config,
+  selected,
+  message,
+}: {
+  config: TuiConfig
+  selected: number
+  message?: string
+}) {
   const rows = [
     ['忽略大小写', onOff(config.ignoreCase)],
     ['默写', dictationLabel(config.dictation)],
@@ -30,6 +43,11 @@ export function SettingsView({ config, selected }: { config: TuiConfig; selected
     ['音标', onOff(config.phonetic)],
     ['译文', onOff(config.isTransVisible)],
     ['强制系统 ABC', onOff(config.forceSystemAbc)],
+    ['键音', onOff(config.keySounds)],
+    ['键音音色', config.keySound.replace(/\.(wav|mp3)$/i, '')],
+    ['朗读释义', onOff(config.transRead)],
+    ['导出备份', '~/.qwerty-learner/backup.json'],
+    ['导入备份', 'Enter 从 backup.json 读入'],
   ]
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
@@ -47,6 +65,11 @@ export function SettingsView({ config, selected }: { config: TuiConfig; selected
           </Text>
         ))}
       </Box>
+      {message ? (
+        <Box marginTop={1}>
+          <Text color="yellow">{message}</Text>
+        </Box>
+      ) : null}
     </Box>
   )
 }

@@ -17,7 +17,7 @@ export function ErrorBookView({
       <Text color="cyan" bold>
         错题本
       </Text>
-      <Text dimColor>Enter 再练 · d 删除 · Esc 返回 · {groups.length} 词</Text>
+      <Text dimColor>Enter 再练 · r 复习本章库错词 · d 删除 · Esc 返回 · {groups.length} 词</Text>
       <Box marginTop={1} flexDirection="column">
         {groups.length === 0 ? (
           <Text dimColor>还没有错词。打错的单词会出现在这里。</Text>
