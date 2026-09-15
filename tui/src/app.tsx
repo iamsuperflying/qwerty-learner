@@ -26,7 +26,6 @@ import {
   groupErrorBook,
   exportBackup,
   importBackup,
-  inferWordIndex,
   loadConfig,
   loadStatsSummary,
   saveChapterRecord,
@@ -53,12 +52,12 @@ function persist(config: TuiConfig) {
 function boot(config: TuiConfig, words?: Word[]) {
   const dict = getDictById(config.dictId)
   let chapterIndex = Math.min(Math.max(0, config.chapter), Math.max(0, dict.chapterCount - 1))
+  // Web only persists dict + chapter; a fresh typing page always SETUP_CHAPTER at index 0
+  // (review mode is the exception — TUI error-book passes words and still starts at 0 unless caller sets index).
   let list = words ?? loadChapterWords(dict, chapterIndex)
-  let wordIndex = words ? 0 : config.wordIndex
-  if (!words && wordIndex < 0) {
-    wordIndex = inferWordIndex(dict.id, chapterIndex, list)
-  }
-  if (!words && wordIndex >= list.length && list.length > 0) {
+  let wordIndex = 0
+  if (!words && config.wordIndex >= list.length && list.length > 0) {
+    // finished last chapter session → advance chapter like completing a run
     chapterIndex = Math.min(chapterIndex + 1, dict.chapterCount - 1)
     list = loadChapterWords(dict, chapterIndex)
     wordIndex = 0
@@ -157,11 +156,22 @@ export default function App() {
   }, [chapter.isTyping, chapter.isFinished, screen])
 
   useEffect(() => {
-    if (screen !== 'typing' || !chapter.isTyping || chapter.isFinished) return
+    // Web: play when input empty AND isTyping (session started / new word while active)
+    if (screen !== 'typing' || chapter.isFinished) return
+    if (!chapter.isTyping) return
     if (word.inputWord.length > 0) return
     if (!config.pronunciation.isOpen || !current?.name) return
-    playWord(current.name, config.pronunciation.type)
-  }, [screen, chapter.isTyping, chapter.isFinished, chapter.index, word.inputWord.length, current?.name, config.pronunciation.isOpen, config.pronunciation.type])
+    void playWord(current.name, config.pronunciation.type)
+  }, [
+    screen,
+    chapter.isTyping,
+    chapter.isFinished,
+    chapter.index,
+    word.inputWord.length,
+    current?.name,
+    config.pronunciation.isOpen,
+    config.pronunciation.type,
+  ])
 
   useEffect(() => {
     const next = chapter.words[chapter.index + 1]
@@ -237,14 +247,9 @@ export default function App() {
 
   const typeChar = useCallback(
     (raw: string) => {
-      if (word.hasWrong || chapter.isFinished) return
+      // Web only accepts letters while isTyping; start key is handled separately
+      if (!chapter.isTyping || word.hasWrong || chapter.isFinished) return
       let live = chapter
-      if (!live.isTyping) {
-        live = startTyping(live)
-        if (config.pronunciation.isOpen && current?.name) {
-          playWord(current.name, config.pronunciation.type)
-        }
-      }
       const result = applyChar(word, raw, config.ignoreCase)
       if (result.kind === 'ignored') {
         setChapter(live)
@@ -266,7 +271,7 @@ export default function App() {
       setWord(result.state)
       setChapter(live)
     },
-    [chapter, config.ignoreCase, config.keySounds, config.keySound, config.pronunciation, current?.name, finishWord, word],
+    [chapter, config.ignoreCase, config.keySounds, config.keySound, finishWord, word],
   )
 
   const filteredDicts = useMemo(() => {
@@ -548,16 +553,23 @@ export default function App() {
       setScreen('settings')
       return
     }
-    if (key.ctrl && input === 'j') {
+    // Terminal: Ctrl+J = LF/Enter, Ctrl+I = Tab — cannot be hotkeys here.
+    // Ctrl+P pronounce, Ctrl+U 释义 TTS, Ctrl+B force ABC. (J/I kept as dead aliases only.)
+    if (key.ctrl && (input === 'p' || input === 'j')) {
       if (key.shift) {
         const gloss = current?.trans[0]
-        if (gloss) playText(gloss, 'zh')
+        if (gloss) void playText(gloss, 'zh')
         return
       }
-      if (current) playWord(current.name, config.pronunciation.type)
+      if (current) void playWord(current.name, config.pronunciation.type)
       return
     }
-    if (key.ctrl && input === 'i') {
+    if (key.ctrl && input === 'u') {
+      const gloss = current?.trans[0]
+      if (gloss) void playText(gloss, 'zh')
+      return
+    }
+    if (key.ctrl && (input === 'b' || input === 'i')) {
       const info = grabEnglish()
       setImeLabel(imeShortName(info))
       return
@@ -619,8 +631,16 @@ export default function App() {
       return
     }
     if (key.return) {
+      // Web StartButton: Enter toggles pause/start only
       setChapter((s) => (s.isTyping ? pauseTyping(s) : startTyping(s)))
       return
+    }
+    // Web: while paused, any legal key/space starts session and is NOT typed into the word
+    if (!chapter.isTyping && !chapter.isFinished && screen === 'typing') {
+      if (!key.ctrl && !key.meta && !key.return && (isTypingChar(input) || input === ' ')) {
+        setChapter((s) => startTyping(s))
+        return
+      }
     }
     if (!key.ctrl && !key.meta && isTypingChar(input)) {
       typeChar(input)

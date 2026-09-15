@@ -99,9 +99,24 @@ function installExitHook() {
   })
 }
 
+function isEnglishIme(info: ImeInfo): boolean {
+  const id = info.id.toLowerCase()
+  const mode = info.mode.toLowerCase()
+  const name = info.name.toLowerCase()
+  // System Latin key layouts (ABC / US / British / ...)
+  if (id.startsWith('com.apple.keylayout.')) return true
+  // Some IMEs expose an English/Latin mode id
+  if (/(^|[._-])(abc|us|uk|british|australian|irish|english|latin|roma|romaji)([._-]|$)/i.test(mode)) {
+    return true
+  }
+  if (/(english|abc|\bus\b|拉丁|罗马)/i.test(mode)) return true
+  // Name fallback when mode is empty but layout is clearly Latin-only
+  if (!mode && /\b(abc|u\.s\.|us|british)\b/i.test(name)) return true
+  return false
+}
+
+/** UI label: only 英/中, never the full IME product name. */
 export function imeShortName(info: ImeInfo | null): string {
   if (!info) return '?'
-  if (info.id.startsWith('com.apple.keylayout.ABC')) return 'ABC'
-  if (info.id.startsWith('com.apple.keylayout.US')) return 'US'
-  return info.name || info.id.split('.').pop() || '?'
+  return isEnglishIme(info) ? '英' : '中'
 }

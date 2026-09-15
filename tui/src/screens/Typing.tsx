@@ -7,6 +7,73 @@ import type { ChapterState, DictMeta, Word, WordState } from '../engine/types.ts
 import type { TuiConfig } from '../persist.ts'
 import { dictationLabel } from '../engine/dictation.ts'
 
+/** Pause / cold-start gate only — not the word stage. */
+function StartGate({ resume }: { resume: boolean }) {
+  const title = resume ? '按任意键继续' : '按任意键开始'
+  return (
+    <Box flexDirection="column" alignItems="center" marginTop={2} marginBottom={1} width="100%">
+      <Box
+        flexDirection="column"
+        alignItems="center"
+        borderStyle="round"
+        borderColor="cyan"
+        paddingX={4}
+        paddingY={1}
+        minWidth={36}
+      >
+        <Text color="cyan" bold>
+          ◆  Q W E R T Y  ◆
+        </Text>
+        <Text dimColor>────────────────────</Text>
+        <Text color="white" bold>
+          {title}
+        </Text>
+        <Text dimColor>{resume ? 'resume session' : 'press any key'}</Text>
+        <Text dimColor>
+          <Text color="yellow">▸</Text> enter 也可切换开始/暂停 <Text color="yellow">◂</Text>
+        </Text>
+      </Box>
+    </Box>
+  )
+}
+
+/**
+ * Web PrevAndNextWord: full trans.join('；'), visually one line (line-clamp-1).
+ * Do NOT drop senses — only truncate display if the row is too narrow.
+ */
+function SideCard({
+  word,
+  side,
+  showTrans,
+  hidden,
+}: {
+  word: Word | undefined
+  side: 'prev' | 'next'
+  showTrans: boolean
+  hidden?: boolean
+}) {
+  if (!word) {
+    return <Box width="40%" height={2} />
+  }
+  const end = side === 'next'
+  const head = hidden ? '____' : word.name
+  const gloss = showTrans ? word.trans.join('；') : ''
+  return (
+    <Box width="40%" flexDirection="column" alignItems={end ? 'flex-end' : 'flex-start'} height={2}>
+      <Text dimColor wrap="truncate">
+        {end ? `${head} →` : `← ${head}`}
+      </Text>
+      {showTrans ? (
+        <Text dimColor wrap="truncate">
+          {gloss}
+        </Text>
+      ) : (
+        <Text> </Text>
+      )}
+    </Box>
+  )
+}
+
 export function TypingView({
   dict,
   config,
@@ -32,73 +99,58 @@ export function TypingView({
   const prev = chapter.words[chapter.index - 1]
   const next = chapter.words[chapter.index + 1]
   const hideNext = config.dictation.isOpen && !peeking
+  // current gloss: full text like web Translation
+  const centerGloss =
+    config.isTransVisible || peeking ? current?.trans.join('；') || '' : ''
+
   return (
-    <Box flexDirection="column" paddingY={1}>
-      <Box justifyContent="center">
-        <Text>
-          <Text color="cyan" bold>
-            QWERTY
-          </Text>
-          <Text dimColor>  </Text>
-          <Text color="white">{reviewing ? `复习 · ${dict.name} · ${chapter.words.length} 词` : dict.name}</Text>
-          <Text dimColor>
-            {reviewing ? '' : `  Ch ${config.chapter + 1}/${dict.chapterCount}`}
-            {'  '}默写:{dictationLabel(config.dictation)}
-            {'  '}
-            {config.pronunciation.isOpen ? config.pronunciation.type.toUpperCase() : '静音'}
-            {imeLabel ? `  输入:${imeLabel}` : ''}
-          </Text>
+    <Box flexDirection="column" paddingY={1} width="100%">
+      <Box justifyContent="center" width="100%">
+        <Text dimColor>
+          <Text color="cyan">QWERTY</Text>
+          {'  '}
+          {reviewing ? `复习 · ${dict.name}` : `${dict.name}  Ch ${config.chapter + 1}/${dict.chapterCount}`}
+          {'  '}
+          默写:{dictationLabel(config.dictation)}
+          {'  '}
+          {config.pronunciation.isOpen ? (config.pronunciation.type === 'uk' ? '音:英' : '音:美') : '音:关'}
+          {imeLabel ? `  键:${imeLabel}` : ''}
         </Text>
       </Box>
 
-      <Box marginTop={2} flexDirection="row">
-        <Box width="22%" flexDirection="column" paddingLeft={1}>
-          {prev ? (
-            <>
-              <Text dimColor>← {prev.name}</Text>
-              {config.isTransVisible ? <Text dimColor>{prev.trans[0] ?? ''}</Text> : null}
-            </>
-          ) : (
-            <Text> </Text>
-          )}
-        </Box>
-        <Box width="56%" flexDirection="column" alignItems="center">
-          {current?.notation ? <Text dimColor>{current.notation}</Text> : null}
-          <WordLine state={word} dictation={config.dictation} peeking={peeking} />
-          {config.phonetic && phone ? <Text dimColor>/{phone}/</Text> : null}
-          {config.isTransVisible || peeking ? (
-            <Text dimColor>{current?.trans.join('；') || ' '}</Text>
-          ) : (
-            <Text dimColor> </Text>
-          )}
-        </Box>
-        <Box width="22%" flexDirection="column" alignItems="flex-end" paddingRight={1}>
-          {next ? (
-            <>
-              <Text dimColor>
-                {hideNext ? '____' : next.name} →
-              </Text>
-              {config.isTransVisible ? <Text dimColor>{next.trans[0] ?? ''}</Text> : null}
-            </>
-          ) : (
-            <Text> </Text>
-          )}
-        </Box>
-      </Box>
+      {pausedHint ? (
+        <StartGate resume={chapter.time > 0} />
+      ) : (
+        <Box marginTop={2} marginBottom={1} flexDirection="column" width="100%">
+          {/* web: prev/next sit in a top row (justify-between), NOT beside the headword */}
+          <Box flexDirection="row" width="100%" justifyContent="space-between" paddingX={2} height={2}>
+            <SideCard word={prev} side="prev" showTrans={config.isTransVisible} />
+            <SideCard word={next} side="next" showTrans={config.isTransVisible} hidden={hideNext} />
+          </Box>
 
-      <Box marginTop={2} justifyContent="center">
+          {/* headword stage — own block, centered, like web WordPanel body */}
+          <Box marginTop={2} flexDirection="column" alignItems="center" width="100%">
+            {current?.notation ? <Text dimColor>{current.notation}</Text> : null}
+            <Box marginY={1}>
+              <WordLine state={word} dictation={config.dictation} peeking={peeking} />
+            </Box>
+            {config.phonetic && phone ? <Text dimColor>/{phone}/</Text> : null}
+            {centerGloss ? (
+              <Text dimColor wrap="truncate">
+                {centerGloss}
+              </Text>
+            ) : (
+              <Text> </Text>
+            )}
+          </Box>
+        </Box>
+      )}
+
+      <Box marginTop={1} width="100%" alignItems="center">
         <StatsBar chapter={chapter} total={chapter.words.length} />
       </Box>
 
-      {pausedHint ? (
-        <Box marginTop={1}>
-          <Text color="yellow">
-            {chapter.index > 0 ? `从第 ${chapter.index + 1} 词继续 · 按任意字母开始` : '按任意字母开始'}
-          </Text>
-        </Box>
-      ) : null}
-
-      <Help extra={chapter.isShowSkip ? 'Ctrl+S 跳过当前词' : undefined} />
+      <Help extra={!pausedHint && chapter.isShowSkip ? 'Ctrl+S 跳过当前词' : undefined} />
     </Box>
   )
 }

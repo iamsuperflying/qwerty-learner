@@ -14,8 +14,8 @@ npm run tui
 | 字母 / 空格 | 开始或输入 |
 | Enter | 暂停 / 继续 |
 | Tab | 默写窥视 |
-| Ctrl+J | 发音 |
-| Ctrl+I | 强制切到系统 ABC（豆包请用 Shift 切英文） |
+| Ctrl+P | 发音 |
+| Ctrl+B | 强制切到系统 ABC（豆包请用 Shift 切英文） |
 | Ctrl+V | 默写模式 |
 | Ctrl+T | 译文 |
 | Ctrl+D | 词库 |

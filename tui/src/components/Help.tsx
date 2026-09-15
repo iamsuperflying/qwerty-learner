@@ -3,9 +3,9 @@ import { Box, Text } from 'ink'
 
 export function Help({ extra }: { extra?: string }) {
   return (
-    <Box flexDirection="column" marginTop={1}>
+    <Box flexDirection="column" marginTop={1} width="100%" alignItems="center">
       <Text dimColor>
-        tab 窥视  ^J 发音  ^L 词表  ^A 统计  ^E 错题  ^D 词库  ^O 设置  esc 暂停
+        tab 窥视  ^P 发音  ^L 词表  ^A 统计  ^E 错题  ^D 词库  ^O 设置  esc 暂停
       </Text>
       {extra ? <Text color="yellow">{extra}</Text> : null}
     </Box>
@@ -14,11 +14,11 @@ export function Help({ extra }: { extra?: string }) {
 
 export function HelpOverlay() {
   const rows = [
-    ['任意字母 / 空格', '开始练习或输入'],
+    ['任意键 / 空格', '开始（不计入输入）'],
     ['Enter', '暂停 / 继续'],
     ['Tab', '默写时窥视单词'],
-    ['Ctrl+J', '重播发音'],
-    ['Ctrl+I', '强制切到系统 ABC（豆包请用 Shift 切英文）'],
+    ['Ctrl+P', '重播发音'],
+    ['Ctrl+B', '强制切到系统 ABC（豆包请用 Shift 切英文）'],
     ['Ctrl+V', '循环默写模式'],
     ['Ctrl+T', '显示/隐藏译文'],
     ['Ctrl+← / Ctrl+→', '上 / 下一词（不计入成绩）'],
@@ -26,7 +26,7 @@ export function HelpOverlay() {
     ['Ctrl+D', '词库'],
     ['Ctrl+L', '本章词表'],
     ['Ctrl+A', '统计'],
-    ['Ctrl+Shift+J', '朗读当前释义'],
+    ['Ctrl+U', '朗读当前释义'],
     ['Ctrl+E', '错题本（r 复习当前词库错词）'],
     ['Ctrl+M', '开关键音'],
     ['Ctrl+O', '设置'],
