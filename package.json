@@ -65,7 +65,10 @@
     "test:e2e": "playwright test",
     "lint": "eslint .",
     "prettier": "prettier --write .",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "tui": "npm --prefix tui start",
+    "tui:test": "npm --prefix tui test",
+    "tui:sync-catalog": "npm --prefix tui run sync-catalog"
   },
   "lint-staged": {
     "src/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
