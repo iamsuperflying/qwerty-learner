@@ -12,7 +12,15 @@ function Cell({ value, label }: { value: string | number; label: string }) {
   )
 }
 
-export function StatsBar({ chapter, total }: { chapter: ChapterState; total: number }) {
+export function StatsBar({
+  chapter,
+  total,
+  showProgress,
+}: {
+  chapter: ChapterState
+  total: number
+  showProgress: boolean
+}) {
   const { stdout } = useStdout()
   const [cols, setCols] = useState(() => stdout?.columns ?? 80)
 
@@ -33,19 +41,20 @@ export function StatsBar({ chapter, total }: { chapter: ChapterState; total: num
   const inputs = chapter.correctCount + chapter.wrongCount
   const current = Math.min(chapter.index + (chapter.isFinished ? 0 : 1), total)
   const label = `${current}/${total}`
-
-  // App root uses padding={1} → content width ≈ columns - 2
   const contentWidth = Math.max(barWidth, (cols || 80) - 2)
-  // Center the BAR only; label is drawn immediately after (may extend past center).
   const leftPad = Math.max(0, Math.floor((contentWidth - barWidth) / 2))
 
   return (
     <Box flexDirection="column" width="100%">
-      <Text>
-        {' '.repeat(leftPad)}
-        <Text color="cyan">{bar}</Text>
-        <Text color="cyan"> {label}</Text>
-      </Text>
+      {showProgress ? (
+        <Text>
+          {' '.repeat(leftPad)}
+          <Text color="cyan">{bar}</Text>
+          <Text color="cyan"> {label}</Text>
+        </Text>
+      ) : (
+        <Text> </Text>
+      )}
       <Box marginTop={1} width="100%" justifyContent="center">
         <Cell value={formatTime(chapter.time)} label="时间" />
         <Cell value={inputs} label="输入数" />

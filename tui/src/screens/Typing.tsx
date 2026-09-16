@@ -2,16 +2,13 @@ import React from 'react'
 import { Box, Text } from 'ink'
 import { WordLine } from '../components/WordLine.tsx'
 import { StatsBar } from '../components/StatsBar.tsx'
-import { Help } from '../components/Help.tsx'
 import type { ChapterState, DictMeta, Word, WordState } from '../engine/types.ts'
 import type { TuiConfig } from '../persist.ts'
 import { dictationLabel } from '../engine/dictation.ts'
 
-/** Pause / cold-start gate only — not the word stage. */
-function StartGate({ resume }: { resume: boolean }) {
-  const title = resume ? '按任意键继续' : '按任意键开始'
+function PauseOverlay({ resume }: { resume: boolean }) {
   return (
-    <Box flexDirection="column" alignItems="center" marginTop={2} marginBottom={1} width="100%">
+    <Box flexDirection="column" alignItems="center" width="100%" marginY={1}>
       <Box
         flexDirection="column"
         alignItems="center"
@@ -26,7 +23,7 @@ function StartGate({ resume }: { resume: boolean }) {
         </Text>
         <Text dimColor>────────────────────</Text>
         <Text color="white" bold>
-          {title}
+          {resume ? '按任意键继续' : '按任意键开始'}
         </Text>
         <Text dimColor>{resume ? 'resume session' : 'press any key'}</Text>
         <Text dimColor>
@@ -37,10 +34,6 @@ function StartGate({ resume }: { resume: boolean }) {
   )
 }
 
-/**
- * Web PrevAndNextWord: full trans.join('；'), visually one line (line-clamp-1).
- * Do NOT drop senses — only truncate display if the row is too narrow.
- */
 function SideCard({
   word,
   side,
@@ -95,13 +88,12 @@ export function TypingView({
   imeLabel?: string
   reviewing?: boolean
 }) {
+  const isTyping = !pausedHint
   const phone = config.pronunciation.type === 'uk' ? current?.ukphone : current?.usphone
   const prev = chapter.words[chapter.index - 1]
   const next = chapter.words[chapter.index + 1]
   const hideNext = config.dictation.isOpen && !peeking
-  // current gloss: full text like web Translation
-  const centerGloss =
-    config.isTransVisible || peeking ? current?.trans.join('；') || '' : ''
+  const centerGloss = config.isTransVisible || peeking ? current?.trans.join('；') || '' : ''
 
   return (
     <Box flexDirection="column" paddingY={1} width="100%">
@@ -118,18 +110,25 @@ export function TypingView({
         </Text>
       </Box>
 
-      {pausedHint ? (
-        <StartGate resume={chapter.time > 0} />
-      ) : (
-        <Box marginTop={2} marginBottom={1} flexDirection="column" width="100%">
-          {/* web: prev/next sit in a top row (justify-between), NOT beside the headword */}
-          <Box flexDirection="row" width="100%" justifyContent="space-between" paddingX={2} height={2}>
+      {/* web WordPanel: prev/next only when isTyping */}
+      <Box marginTop={1} flexDirection="row" width="100%" justifyContent="space-between" paddingX={2} height={2}>
+        {isTyping ? (
+          <>
             <SideCard word={prev} side="prev" showTrans={config.isTransVisible} />
             <SideCard word={next} side="next" showTrans={config.isTransVisible} hidden={hideNext} />
-          </Box>
+          </>
+        ) : (
+          <>
+            <Box width="40%" height={2} />
+            <Box width="40%" height={2} />
+          </>
+        )}
+      </Box>
 
-          {/* headword stage — own block, centered, like web WordPanel body */}
-          <Box marginTop={2} flexDirection="column" alignItems="center" width="100%">
+      {/* web overlay: covers the word when paused */}
+      <Box marginTop={1} flexDirection="column" alignItems="center" width="100%">
+        {isTyping ? (
+          <>
             {current?.notation ? <Text dimColor>{current.notation}</Text> : null}
             <Box marginY={1}>
               <WordLine state={word} dictation={config.dictation} peeking={peeking} />
@@ -142,15 +141,21 @@ export function TypingView({
             ) : (
               <Text> </Text>
             )}
-          </Box>
-        </Box>
-      )}
-
-      <Box marginTop={1} width="100%" alignItems="center">
-        <StatsBar chapter={chapter} total={chapter.words.length} />
+          </>
+        ) : (
+          <PauseOverlay resume={chapter.time > 0} />
+        )}
       </Box>
 
-      <Help extra={!pausedHint && chapter.isShowSkip ? 'Ctrl+S 跳过当前词' : undefined} />
+      {/* web: Progress opacity follows isTyping; Speed (五项) always on */}
+      <Box marginTop={1} width="100%" alignItems="center">
+        <StatsBar chapter={chapter} total={chapter.words.length} showProgress={isTyping} />
+      </Box>
+      {isTyping && chapter.isShowSkip ? (
+        <Box justifyContent="center">
+          <Text color="yellow">Ctrl+S 跳过</Text>
+        </Box>
+      ) : null}
     </Box>
   )
 }

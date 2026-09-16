@@ -18,11 +18,9 @@ export function WordLine({
     <Text bold>
       {chars.map((ch, i) => {
         const visible = isLetterVisible(state, i, dictation, peeking)
-        const shown = visible ? (ch === '␣' ? ' ' : ch) : '_'
+        const shown = visible ? (ch === '␣' ? '␣' : ch) : '_'
         const letterState = state.letterStates[i]
-        // web: normal gray/white, correct green, wrong red
-        const color =
-          letterState === 'correct' ? 'green' : letterState === 'wrong' ? 'red' : 'white'
+        const color = letterState === 'correct' ? 'green' : letterState === 'wrong' ? 'red' : 'white'
         return (
           <Text key={i} bold color={color}>
             {shown}

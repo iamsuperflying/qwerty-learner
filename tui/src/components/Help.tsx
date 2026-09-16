@@ -5,7 +5,7 @@ export function Help({ extra }: { extra?: string }) {
   return (
     <Box flexDirection="column" marginTop={1} width="100%" alignItems="center">
       <Text dimColor>
-        tab 窥视  ^P 发音  ^L 词表  ^A 统计  ^E 错题  ^D 词库  ^O 设置  esc 暂停
+        tab 窥视  ^P 发音  ^L 词表  ^A 统计  ^E 错题  ^D 词库  ^O 设置
       </Text>
       {extra ? <Text color="yellow">{extra}</Text> : null}
     </Box>
@@ -30,8 +30,7 @@ export function HelpOverlay() {
     ['Ctrl+E', '错题本（r 复习当前词库错词）'],
     ['Ctrl+M', '开关键音'],
     ['Ctrl+O', '设置'],
-    ['Esc', '暂停；再按退出'],
-    ['q', '暂停时退出'],
+    ['Esc / q', '暂停时退出'],
   ]
   return (
     <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} paddingY={1}>
