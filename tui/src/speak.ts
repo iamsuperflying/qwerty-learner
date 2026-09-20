@@ -1,6 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
-import https from 'node:https'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dataDir } from './persist.ts'
@@ -17,35 +16,19 @@ function cacheFile(word: string, type: 'us' | 'uk'): string {
   return path.join(dataDir(), 'cache', type, `${safe}.mp3`)
 }
 
-function download(url: string, dest: string): Promise<boolean> {
-  return new Promise((resolve) => {
+async function download(url: string, dest: string): Promise<boolean> {
+  try {
     fs.mkdirSync(path.dirname(dest), { recursive: true })
-    const file = fs.createWriteStream(dest)
-    const req = https.get(url, { timeout: 5000 }, (res) => {
-      if (res.statusCode && res.statusCode >= 400) {
-        file.close()
-        fs.rmSync(dest, { force: true })
-        resolve(false)
-        return
-      }
-      res.pipe(file)
-      file.on('finish', () => {
-        file.close()
-        resolve(true)
-      })
-    })
-    req.on('error', () => {
-      file.close()
-      fs.rmSync(dest, { force: true })
-      resolve(false)
-    })
-    req.on('timeout', () => {
-      req.destroy()
-      file.close()
-      fs.rmSync(dest, { force: true })
-      resolve(false)
-    })
-  })
+    const res = await fetch(url, { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return false
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (buf.length === 0) return false
+    fs.writeFileSync(dest, buf)
+    return true
+  } catch {
+    fs.rmSync(dest, { force: true })
+    return false
+  }
 }
 
 function which(bin: string): boolean {

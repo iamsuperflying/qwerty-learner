@@ -1,6 +1,6 @@
 # Qwerty Learner TUI
 
-终端里练习单词打字。词库与网页版相同，进度在 `~/.qwerty-learner/qwerty.db`（SQLite）。
+终端里练习单词打字。词库与网页版相同，进度在 `~/.qwerty-learner/qwerty.db`（SQLite）。需要 Node.js 22+。
 
 ```sh
 npm --prefix tui install

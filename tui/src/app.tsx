@@ -19,7 +19,7 @@ import {
 import { nextDictation } from './engine/dictation.ts'
 import { isTypingChar } from './engine/legal.ts'
 import { applyChar, clearWrongInput, createWordState, timingDiffs } from './engine/match.ts'
-import { SKIP_AFTER_WRONG, WRONG_CLEAR_MS, type DictMeta, type Word } from './engine/types.ts'
+import { SKIP_AFTER_WRONG, WRONG_CLEAR_MS, type ChapterState, type DictMeta, type Word, type WordState } from './engine/types.ts'
 import {
   appendRecord,
   deleteWordRecords,
@@ -187,7 +187,7 @@ export default function App() {
   }, [chapter.index, chapter.words, config.pronunciation])
 
   const finishWord = useCallback(
-    (finished, liveChapter) => {
+    (finished: WordState, liveChapter: ChapterState) => {
       const item = liveChapter.words[liveChapter.index]
       if (item) {
         const id = crypto.randomUUID()
